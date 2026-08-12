@@ -1,0 +1,5 @@
+pypresence>=4.3.0
+pydantic>=2.6
+pydantic-settings>=2.2
+PyYAML>=6.0
+psutil>=5.9

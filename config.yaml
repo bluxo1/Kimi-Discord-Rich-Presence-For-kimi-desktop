@@ -1,0 +1,75 @@
+# kimi-discord-rpc configuration
+#
+# Every value can also be set from the environment with the KIMI_RPC_ prefix
+# and __ for nesting, e.g. KIMI_RPC_DISCORD__CLIENT_ID=123456789.
+# Environment variables win over this file.
+
+discord:
+  # Create an application at https://discord.com/developers/applications and
+  # paste its Application ID here. Nothing else from Discord is needed --
+  # no bot token, no OAuth secret.
+  client_id: ""
+
+  # Asset keys uploaded under Rich Presence -> Art Assets in the same app.
+  large_image: "kimi_logo"
+  small_image: ""
+
+  # Optional, at most two. Shown as buttons on your profile.
+  buttons: []
+  # buttons:
+  #   - label: "Repo"
+  #     url: "https://github.com/you/kimi-discord-rpc"
+
+kimi:
+  # Leave empty to use the platform default location of Kimi Desktop's data
+  # directory (%APPDATA%\kimi-desktop on Windows).
+  data_dir: null
+  log_file: null
+  tab_activity_file: null
+
+  process_names:
+    - "Kimi"
+    - "kimi-desktop"
+
+  # How much of the log tail to replay at startup so the card is correct
+  # immediately rather than after Kimi's next event.
+  bootstrap_bytes: 262144
+
+  # Shown when Kimi reports no project (plain chat sessions). Leave empty to
+  # fall back to the generic "Chatting with Kimi" line.
+  project_override: ""
+
+display:
+  show_project: true
+  show_git_branch: true
+  show_model: true
+  show_session_timer: true
+
+  # Kimi Desktop does not expose per-message token counts locally, so this
+  # shows the share of your account quota consumed instead. See README.
+  show_quota: true
+  show_context_window: true
+
+  # These can identify what you are working on. Off by default.
+  show_file: false
+  show_work_dir: false
+
+  chatting_text: "Chatting with Kimi"
+  idle_text: "Idle"
+
+  # Discord throttles presence updates to one per ~15s; lower values are
+  # clamped back up to 15.
+  update_interval: 15
+
+  # Local state polling. Cheap, no network.
+  poll_interval: 5
+
+  # Seconds of no Kimi activity before the card is marked idle.
+  idle_after: 900
+
+behaviour:
+  # What to do while Kimi Desktop is closed: "clear" removes the card,
+  # "idle" leaves a minimal one up.
+  when_kimi_closed: "clear"
+  reconnect: true
+  max_backoff: 60
