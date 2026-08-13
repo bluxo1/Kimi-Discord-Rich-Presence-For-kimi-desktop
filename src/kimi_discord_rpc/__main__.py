@@ -219,9 +219,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if not args.dry_run and not settings.discord.client_id:
         log.error(
-            "discord.client_id is not set. Create an application at "
+            "discord.client_id is not set in %s. Create an application at "
             "https://discord.com/developers/applications, copy its Application ID "
-            "into config.yaml, then run again. Use --dry-run to preview without Discord."
+            "into that file, then run again. Use --dry-run to preview without Discord.",
+            args.config or default_config_path(),
         )
         return 2
 

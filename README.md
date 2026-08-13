@@ -4,6 +4,10 @@ Show your Kimi Desktop session on Discord: current project, git branch, model,
 session time and quota usage — without touching credentials, without modifying
 Kimi, and without sending anything anywhere except Discord's local IPC socket.
 
+**Website:** <https://bluxo1.github.io/Kimi-Discord-Rich-Presence-For-kimi-desktop/>
+— the source lives in [`docs/`](docs/) and includes an interactive preview of the
+card that mirrors the real composition rules.
+
 ```
 ┌─────────────────────────────────────────────┐
 │ Kimi AI                                     │
@@ -64,7 +68,10 @@ pip install -r requirements.txt
 1. Open <https://discord.com/developers/applications> → **New Application**, name it `Kimi AI`.
 2. **Rich Presence → Art Assets**: upload your Kimi logo with the asset key `kimi_logo`.
 3. Copy the **Application ID** from *General Information*.
-4. Paste it into `config.yaml` as `discord.client_id`.
+4. Copy `config.yaml` to `config.local.yaml` and paste the ID there as
+   `discord.client_id`. `config.local.yaml` is gitignored and is picked up
+   automatically in preference to `config.yaml`, so your ID stays out of git.
+   Editing `config.yaml` directly also works if you are not committing.
 
 No bot token, no OAuth secret and no scopes are involved. The Application ID is
 a public identifier.
@@ -83,10 +90,37 @@ python -m kimi_discord_rpc               # publish to Discord
 `--doctor` is the first thing to run if something looks wrong: it prints every
 input path, whether Kimi is running, and exactly what was detected.
 
+## Autostart (no terminal)
+
+To have the presence appear on its own — no terminal, no command — run the
+bridge in the background at login. [`start-kimi-rpc.vbs`](start-kimi-rpc.vbs)
+launches it with the project's windowless Python (`pythonw.exe`), so there is no
+console window at all. The bridge is a long-running watcher: it keeps retrying
+Discord until it is open, updates the card while Kimi runs, and clears it when
+Kimi closes — so one always-on process is all you need.
+
+Register it to start with Windows by dropping a shortcut to the `.vbs` into your
+Startup folder:
+
+```powershell
+$proj    = (Get-Location).Path
+$vbs     = Join-Path $proj 'start-kimi-rpc.vbs'
+$startup = [Environment]::GetFolderPath('Startup')
+$s = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path $startup 'Kimi Discord RPC.lnk'))
+$s.TargetPath = "$env:SystemRoot\System32\wscript.exe"; $s.Arguments = '"' + $vbs + '"'
+$s.WorkingDirectory = $proj; $s.Save()
+```
+
+Run `start-kimi-rpc.vbs` once (double-click it) to start it now without
+rebooting. To turn autostart off, delete `Kimi Discord RPC.lnk` from the Startup
+folder (open it with **Win+R → `shell:startup`**).
+
 ## Configuration
 
-Everything lives in `config.yaml`, and every key can be overridden from the
-environment with the `KIMI_RPC_` prefix and `__` for nesting:
+Settings are read from `config.local.yaml` if it exists, otherwise from
+`config.yaml`; `--config PATH` overrides both. Every key can also be set from
+the environment with the `KIMI_RPC_` prefix and `__` for nesting, which wins
+over whichever file was loaded:
 
 ```bash
 KIMI_RPC_DISCORD__CLIENT_ID=123456789012345678

@@ -145,6 +145,14 @@ def default_kimi_data_dir() -> Path:
 
 
 def default_config_path() -> Path:
+    """The config to use when none was named on the command line.
+
+    ``config.local.yaml`` is gitignored and holds your own Discord Application
+    ID, so it wins over the checked-in ``config.yaml`` template when present.
+    """
+    local = Path.cwd() / "config.local.yaml"
+    if local.is_file():
+        return local
     return Path.cwd() / "config.yaml"
 
 

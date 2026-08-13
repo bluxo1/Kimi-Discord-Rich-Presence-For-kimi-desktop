@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kimi Desktop → Discord Rich Presence</title>
+<meta name="description" content="Show your Kimi Desktop session on Discord — project, git branch, model, session time and quota usage. No credentials, no traffic interception, no telemetry.">
+<link rel="icon" href="kimi_logo.png">
+<meta property="og:title" content="Kimi Desktop → Discord Rich Presence">
+<meta property="og:description" content="Show your Kimi Desktop session on Discord — project, branch, model, quota. Read-only, local-only.">
+<meta property="og:image" content="kimi_logo.png">
+<style>
+  :root{
+    --bg:#0b0d10;
+    --panel:#151a20;
+    --panel-2:#1b222a;
+    --line:#252d37;
+    --text:#e6eaf0;
+    --muted:#98a3b3;
+    --dim:#6d7889;
+    --accent:#7d5cff;
+    --accent-2:#4ea1ff;
+    --green:#3ba55d;
+    --discord:#232428;
+    --discord-2:#111214;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+    line-height:1.6;-webkit-font-smoothing:antialiased;
+  }
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(60rem 40rem at 15% -10%, rgba(125,92,255,.18), transparent 60%),
+      radial-gradient(50rem 35rem at 95% 5%, rgba(78,161,255,.12), transparent 60%);
+  }
+  .wrap{position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:var(--accent-2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:.9em;background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:.1em .38em}
+  h1,h2,h3{line-height:1.25;margin:0}
+  section{padding:64px 0;border-top:1px solid var(--line)}
+  section > .wrap > h2{font-size:1.6rem;letter-spacing:-.02em}
+  .lede{color:var(--muted);margin-top:10px;max-width:62ch}
+
+  /* ---------- nav ---------- */
+  nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(10px);background:rgba(11,13,16,.78);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;gap:18px;height:58px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:650;letter-spacing:-.01em}
+  .brand img{width:26px;height:26px;border-radius:7px}
+  nav .links{margin-left:auto;display:flex;gap:20px;font-size:.92rem}
+  nav .links a{color:var(--muted)}
+  nav .links a:hover{color:var(--text);text-decoration:none}
+  @media(max-width:720px){nav .links a.opt{display:none}}
+
+  /* ---------- hero ---------- */
+  header.hero{padding:78px 0 64px}
+  .hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+  @media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:40px}}
+  .tag{display:inline-flex;align-items:center;gap:8px;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;
+       color:var(--muted);border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 12px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(59,165,93,.18)}
+  h1{font-size:clamp(2.1rem,4.6vw,3.1rem);letter-spacing:-.035em;margin-top:18px}
+  h1 .grad{background:linear-gradient(100deg,var(--accent),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{color:var(--muted);font-size:1.06rem;max-width:52ch;margin-top:16px}
+  .cta{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:11px 18px;border-radius:10px;font-weight:600;font-size:.95rem;border:1px solid transparent}
+  .btn-primary{background:linear-gradient(100deg,var(--accent),#5b6bff);color:#fff}
+  .btn-primary:hover{filter:brightness(1.1);text-decoration:none}
+  .btn-ghost{border-color:var(--line);background:var(--panel);color:var(--text)}
+  .btn-ghost:hover{border-color:#3a4553;text-decoration:none}
+  .facts{display:flex;gap:22px;margin-top:26px;flex-wrap:wrap;font-size:.86rem;color:var(--dim)}
+  .facts b{color:var(--text);font-weight:600}
+
+  /* ---------- discord card ---------- */
+  .stage{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .discord{
+    width:100%;max-width:400px;background:var(--discord);border-radius:10px;overflow:hidden;
+    box-shadow:0 24px 60px -18px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.05);
+  }
+  .discord .top{padding:14px 16px 4px;font-size:.7rem;font-weight:700;letter-spacing:.04em;color:#b5bac1;text-transform:uppercase}
+  .discord .body{display:flex;gap:14px;padding:10px 16px 16px}
+  .art{position:relative;flex:0 0 auto}
+  .art img{width:64px;height:64px;border-radius:8px;display:block;background:#000}
+  .art .badge{
+    position:absolute;right:-6px;bottom:-6px;width:24px;height:24px;border-radius:50%;
+    background:#1e1f22;border:2px solid var(--discord);display:grid;place-items:center;font-size:11px
+  }
+  .lines{min-width:0;display:flex;flex-direction:column;justify-content:center;gap:1px}
+  .lines .name{font-weight:700;font-size:.94rem;color:#f2f3f5}
+  .lines .row{font-size:.82rem;color:#dbdee1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lines .row.time{font-variant-numeric:tabular-nums;color:#b5bac1}
+  .lines .row.empty{display:none}
+  .dbtns{display:flex;flex-direction:column;gap:8px;padding:0 16px 16px}
+  .dbtn{background:#4e5058;color:#fff;border-radius:3px;text-align:center;font-size:.8rem;font-weight:500;padding:7px 0}
+  .caption{font-size:.78rem;color:var(--dim);text-align:center;min-height:1.2em}
+
+  /* ---------- toggles ---------- */
+  .demo{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start}
+  @media(max-width:900px){.demo{grid-template-columns:1fr;gap:32px}}
+  .toggles{display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:8px}
+  .tg{display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:8px;cursor:pointer}
+  .tg:hover{background:var(--panel-2)}
+  .tg input{appearance:none;-webkit-appearance:none;width:34px;height:20px;border-radius:999px;background:#3a4250;position:relative;flex:0 0 auto;cursor:pointer;transition:background .16s;margin:0}
+  .tg input::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .16s}
+  .tg input:checked{background:var(--accent)}
+  .tg input:checked::after{transform:translateX(14px)}
+  .tg .k{font-family:var(--mono);font-size:.8rem;color:var(--text)}
+  .tg .d{font-size:.8rem;color:var(--dim);margin-left:auto;text-align:right}
+  .tg.priv .k{color:#ffcf6b}
+  .scenario{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+  .chip{font-size:.82rem;padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);cursor:pointer;font-family:inherit}
+  .chip:hover{border-color:#3a4553;color:var(--text)}
+  .chip[aria-pressed="true"]{background:rgba(125,92,255,.16);border-color:var(--accent);color:#cdbcff}
+
+  /* ---------- tables / cards ---------- */
+  .tblwrap{overflow-x:auto;margin-top:24px}
+  table{width:100%;border-collapse:collapse;font-size:.9rem;min-width:520px}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td:first-child{font-weight:600}
+  td code{font-size:.82em}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+  @media(max-width:860px){.grid3{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+  .card h3{font-size:.98rem;margin-bottom:6px}
+  .card p{margin:0;color:var(--muted);font-size:.89rem}
+  .card .ico{font-size:1.15rem;display:block;margin-bottom:10px}
+
+  /* ---------- code ---------- */
+  pre{
+    background:var(--discord-2);border:1px solid var(--line);border-radius:10px;
+    padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:.85rem;line-height:1.7;margin:0;
+  }
+  pre .c{color:var(--dim)}
+  pre .p{color:var(--accent-2)}
+  .steps{counter-reset:s;display:flex;flex-direction:column;gap:26px;margin-top:28px}
+  .step{display:grid;grid-template-columns:34px 1fr;gap:16px}
+  .step .n{
+    counter-increment:s;width:30px;height:30px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);
+    display:grid;place-items:center;font-size:.85rem;font-weight:700;color:var(--muted)
+  }
+  .step .n::before{content:counter(s)}
+  .step h3{font-size:1rem;margin-bottom:8px}
+  .step p{margin:0 0 10px;color:var(--muted);font-size:.9rem}
+  .note{border-left:2px solid var(--accent);padding:2px 0 2px 14px;color:var(--muted);font-size:.88rem;margin-top:18px}
+
+  footer{border-top:1px solid var(--line);padding:36px 0 56px;color:var(--dim);font-size:.86rem}
+  footer .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+  footer .sp{margin-left:auto}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <span class="brand"><img src="kimi_logo.png" alt="">Kimi&nbsp;RPC</span>
+    <span class="links">
+      <a href="#card">The card</a>
+      <a href="#detect" class="opt">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#security" class="opt">Security</a>
+      <a href="https://github.com/bluxo1/Kimi-Discord-Rich-Presence-For-kimi-desktop">GitHub</a>
+    </span>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap hero-grid">
+    <div>
+      <span class="tag"><span class="dot"></span>Reads one log file, writes to one local pipe</span>
+      <h1>Your Kimi session,<br><span class="grad">live on Discord.</span></h1>
+      <p>
+        Project, git branch, model, context window, session time and quota usage —
+        on your Discord profile. Without touching credentials, without modifying
+        Kimi Desktop, and without sending anything anywhere except Discord's local
+        IPC socket.
+      </p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#install">Get started</a>
+        <a class="btn btn-ghost" href="https://github.com/bluxo1/Kimi-Discord-Rich-Presence-For-kimi-desktop">View source</a>
+      </div>
+      <div class="facts">
+        <span><b>Python 3.11+</b></span>
+        <span><b>MIT</b> licensed</span>
+        <span><b>0</b> outbound HTTP requests</span>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="discord">
+        <div class="top">Playing a game</div>
+        <div class="body">
+          <div class="art">
+            <img src="kimi_logo.png" alt="Kimi">
+            <span class="badge">🤖</span>
+          </div>
+          <div class="lines">
+            <div class="name">Kimi AI</div>
+            <div class="row">📁 my-api-refactor · 🌿 feat/auth-v2</div>
+            <div class="row">🧠 Kimi K2.6 · 256k ctx · 7.8% quota used</div>
+            <div class="row time"><span id="heroTimer">00:42:18</span> elapsed</div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">What your friends see while you work.</p>
+    </div>
+  </div>
+</header>
+
+<section id="card">
+  <div class="wrap">
+    <h2>Everything on the card is a switch</h2>
+    <p class="lede">
+      The card is composed from <code>config.yaml</code> in priority order and truncated
+      to fit Discord's 128-character fields. Flip the display keys below and watch the
+      real composition rules play out.
+    </p>
+
+    <div class="demo" style="margin-top:32px">
+      <div>
+        <div class="scenario" role="group" aria-label="Scenario">
+          <button class="chip" data-scene="project" aria-pressed="true">Project session</button>
+          <button class="chip" data-scene="chat" aria-pressed="false">Plain chat</button>
+          <button class="chip" data-scene="agent" aria-pressed="false">Agent mode</button>
+          <button class="chip" data-scene="closed" aria-pressed="false">Kimi closed</button>
+        </div>
+
+        <div class="toggles" id="toggles">
+          <label class="tg"><input type="checkbox" data-k="show_project" checked><span class="k">show_project</span><span class="d">project name</span></label>
+          <label class="tg"><input type="checkbox" data-k="show_git_branch" checked><span class="k">show_git_branch</span><span class="d">branch from .git/HEAD</span></label>
+          <label class="tg"><input type="checkbox" data-k="show_model" checked><span class="k">show_model</span><span class="d">model display name</span></label>
+          <label class="tg"><input type="checkbox" data-k="show_context_window" checked><span class="k">show_context_window</span><span class="d">context size</span></label>
+          <label class="tg"><input type="checkbox" data-k="show_quota" checked><span class="k">show_quota</span><span class="d">share of allowance used</span></label>
+          <label class="tg"><input type="checkbox" data-k="show_session_timer" checked><span class="k">show_session_timer</span><span class="d">elapsed time</span></label>
+          <label class="tg priv"><input type="checkbox" data-k="show_file"><span class="k">show_file</span><span class="d">off by default</span></label>
+          <label class="tg priv"><input type="checkbox" data-k="show_work_dir"><span class="k">show_work_dir</span><span class="d">off by default · hover text</span></label>
+          <label class="tg"><input type="checkbox" data-k="buttons"><span class="k">discord.buttons</span><span class="d">up to two</span></label>
+        </div>
+        <p class="note">
+          The two amber keys can reveal what you are working on, so they ship
+          <strong>off</strong>. Everything else is on.
+        </p>
+      </div>
+
+      <div class="stage">
+        <div class="discord">
+          <div class="top">Playing a game</div>
+          <div class="body">
+            <div class="art">
+              <img src="kimi_logo.png" alt="Kimi">
+              <span class="badge" id="dBadge">🤖</span>
+            </div>
+            <div class="lines">
+              <div class="name">Kimi AI</div>
+              <div class="row" id="dDetails"></div>
+              <div class="row" id="dState"></div>
+              <div class="row time" id="dTime"><span id="dTimer">00:00:00</span> elapsed</div>
+            </div>
+          </div>
+          <div class="dbtns" id="dButtons" style="display:none">
+            <div class="dbtn">Repo</div>
+          </div>
+        </div>
+        <p class="caption" id="dHover"></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="detect">
+  <div class="wrap">
+    <h2>How it detects things</h2>
+    <p class="lede">
+      Kimi Desktop is an Electron app that writes structured events to its own log at
+      <code>%APPDATA%\kimi-desktop\logs\main.log</code>. That log is the data source —
+      richer and far safer than scraping window titles or intercepting traffic.
+    </p>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Field</th><th>Source</th></tr></thead>
+        <tbody>
+          <tr><td>Project, working dir</td><td><code>IPC received: action=kimi_work_send_message</code> payload</td></tr>
+          <tr><td>Model, agent mode, context</td><td>same payload, plus <code>[KimiWorkModelSync] applied global default model=</code></td></tr>
+          <tr><td>Quota, reset date, plan</td><td><code>[SubscriptionManager] refreshed(sub): omniRatio=…</code></td></tr>
+          <tr><td>Session time</td><td>Kimi Desktop's process start time, via <code>psutil</code></td></tr>
+          <tr><td>Focus / activity</td><td><code>[SurfaceReaper] kimi tab activated</code>, <code>[LoadingFlow] did-start-navigation</code></td></tr>
+          <tr><td>Git branch</td><td><code>.git/HEAD</code> under the working directory, parsed directly</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid3">
+      <div class="card">
+        <span class="ico">🪟</span>
+        <h3>Window titles are not used</h3>
+        <p>Kimi Desktop's window title is the constant string <code>kimi-desktop</code>. It carries no project or model information at all.</p>
+      </div>
+      <div class="card">
+        <span class="ico">🔒</span>
+        <h3>No traffic interception</h3>
+        <p>Real token counts would mean man-in-the-middling HTTPS with a trusted root cert — one bug away from logging your own prompts to disk.</p>
+      </div>
+      <div class="card">
+        <span class="ico">📊</span>
+        <h3>Quota instead of tokens</h3>
+        <p>So the card shows the usage signal Kimi <em>does</em> publish locally: the share of your account quota consumed, and its reset date.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install">
+  <div class="wrap">
+    <h2>Install</h2>
+    <p class="lede">Four steps. No bot token, no OAuth secret, no scopes.</p>
+
+    <div class="steps">
+      <div class="step">
+        <span class="n"></span>
+        <div>
+          <h3>Clone and install</h3>
+<pre><span class="c"># Windows; use source .venv/bin/activate elsewhere</span>
+git clone https://github.com/bluxo1/Kimi-Discord-Rich-Presence-For-kimi-desktop.git kimi-discord-rpc
+cd kimi-discord-rpc
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt</pre>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="n"></span>
+        <div>
+          <h3>Create a Discord application</h3>
+          <p>
+            <a href="https://discord.com/developers/applications">discord.com/developers/applications</a>
+            → <strong>New Application</strong>, name it <code>Kimi AI</code>. Under
+            <strong>Rich Presence → Art Assets</strong>, upload the Kimi logo with the asset key
+            <code>kimi_logo</code>. Copy the <strong>Application ID</strong> — it is a public
+            identifier, not a secret.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="n"></span>
+        <div>
+          <h3>Point the config at it</h3>
+<pre><span class="c"># config.yaml</span>
+<span class="p">discord</span>:
+  <span class="p">client_id</span>: "123456789012345678"
+  <span class="p">large_image</span>: "kimi_logo"</pre>
+          <p style="margin-top:10px">
+            Every key can also be set from the environment with the
+            <code>KIMI_RPC_</code> prefix and <code>__</code> for nesting —
+            <code>KIMI_RPC_DISPLAY__SHOW_GIT_BRANCH=false</code>. Environment wins over the file.
+          </p>
+        </div>
+      </div>
+
+      <div class="step">
+        <span class="n"></span>
+        <div>
+          <h3>Run it</h3>
+<pre>python -m kimi_discord_rpc --doctor    <span class="c"># check config, paths, detected state</span>
+python -m kimi_discord_rpc --dry-run   <span class="c"># print the card instead of publishing</span>
+python -m kimi_discord_rpc             <span class="c"># publish to Discord</span></pre>
+          <p style="margin-top:10px"><code>--doctor</code> is the first thing to run if something looks wrong.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="note">
+      In Discord: <strong>Settings → Activity Privacy → Share your detected activities
+      with others</strong> must be on, or nothing will show. The Discord <em>desktop</em>
+      app must be running — the web client has no IPC socket.
+    </p>
+  </div>
+</section>
+
+<section id="security">
+  <div class="wrap">
+    <h2>Security posture</h2>
+    <p class="lede">
+      One rule throughout: read the least possible, send it to exactly one place.
+    </p>
+    <div class="tblwrap">
+      <table>
+        <tbody>
+          <tr><td>No credentials</td><td>Never reads Discord tokens, Kimi API keys, cookie jars or session storage. Kimi's <code>Network/Cookies</code> database sits right next to the log it reads and is never opened.</td></tr>
+          <tr><td>Whitelist parsing</td><td>The send-message log line also contains your prompt text, user id and chat id. <code>PAYLOAD_WHITELIST</code> in <code>kimi_detector.py</code> is the complete set of keys the parser copies; everything else is dropped at parse time.</td></tr>
+          <tr><td>Proven by tests</td><td><code>tests/test_privacy.py</code> asserts that prompt text and identifiers cannot reach the Discord payload under any display configuration.</td></tr>
+          <tr><td>Read-only</td><td>Files are opened for reading only. Nothing is injected into the Kimi process — no DLLs, no hooks, no proxying.</td></tr>
+          <tr><td>Local only</td><td>The single outbound channel is Discord's named pipe <code>discord-ipc-0</code>. No HTTP requests, no telemetry, no analytics, no open ports.</td></tr>
+          <tr><td>No shelling out</td><td>The branch comes from parsing <code>.git/HEAD</code>, so shell injection is not in the threat model at all.</td></tr>
+          <tr><td>User-level</td><td>No administrator rights are needed or requested.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="trouble">
+  <div class="wrap">
+    <h2>Troubleshooting</h2>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Symptom</th><th>Cause</th></tr></thead>
+        <tbody>
+          <tr><td><code>Client ID is Invalid</code></td><td><code>discord.client_id</code> is wrong or still a placeholder</td></tr>
+          <tr><td>Nothing appears, no errors</td><td>Activity Privacy is off in Discord settings, or the Discord desktop app is not running</td></tr>
+          <tr><td>Card shows "Chatting with Kimi"</td><td>Kimi reports no project — a plain chat, not a project session. Set <code>kimi.project_override</code> for a fixed name</td></tr>
+          <tr><td>No git branch</td><td>The session has no working directory, or it is not inside a repository</td></tr>
+          <tr><td>Model shows a raw key</td><td>New Kimi release; add it to <code>DISPLAY_NAMES</code> in <code>models.py</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>MIT licensed.</span>
+    <span>Not affiliated with Moonshot AI or Discord.</span>
+    <span class="sp"><a href="https://github.com/bluxo1/Kimi-Discord-Rich-Presence-For-kimi-desktop">GitHub</a></span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var SEP = " \u00b7 ";
+  var MAX_FIELD = 128;
+
+  var SCENES = {
+    project: {
+      running: true, surface: "work", project: "my-api-refactor", branch: "feat/auth-v2",
+      model: "Kimi K2.6", context: "256k ctx", quota: "7.8% quota used", reset: "resets Sep 01",
+      file: "auth/session.py", workDir: "C:\\dev\\my-api-refactor",
+      badge: "\uD83E\uDD16", elapsed: 2538
+    },
+    chat: {
+      running: true, surface: "chat", project: "", branch: "",
+      model: "Kimi K2.6", context: "256k ctx", quota: "2.1% quota used", reset: "resets Sep 01",
+      file: "", workDir: "", badge: "\uD83D\uDCAC", elapsed: 634
+    },
+    agent: {
+      running: true, surface: "agent", project: "", branch: "main",
+      model: "Kimi K3 Ultra", context: "1M ctx", quota: "31% quota used", reset: "resets Sep 01",
+      file: "pipeline/run.py", workDir: "C:\\dev\\swarm",
+      badge: "\uD83E\uDD16", elapsed: 11045
+    },
+    closed: { running: false, badge: "\uD83D\uDCA4", elapsed: 0 }
+  };
+
+  var scene = "project";
+  var flags = {};
+  var toggles = Array.prototype.slice.call(document.querySelectorAll("#toggles input"));
+
+  function readFlags() {
+    flags = {};
+    toggles.forEach(function (t) { flags[t.dataset.k] = t.checked; });
+  }
+
+  function join(parts) { return parts.filter(Boolean).join(SEP); }
+
+  function fit(text) {
+    if (!text) return "";
+    var s = text.replace(/\s+/g, " ").trim();
+    if (s.length < 2) return "";
+    return s.length > MAX_FIELD ? s.slice(0, MAX_FIELD - 1) + "\u2026" : s;
+  }
+
+  // Mirrors build_payload() in src/kimi_discord_rpc/presence.py
+  function build(s) {
+    if (!s.running) {
+      return { details: "Idle", state: "", hover: "Kimi Desktop is not running", timer: false };
+    }
+
+    var model   = flags.show_model ? s.model : "";
+    var context = flags.show_context_window ? s.context : "";
+    var quota   = flags.show_quota ? s.quota : "";
+    var branch  = flags.show_git_branch ? s.branch : "";
+    var project = flags.show_project ? s.project : "";
+
+    var head;
+    if (project) head = "\uD83D\uDCC1 " + project;
+    else if (s.surface === "agent") head = "\uD83E\uDD16 Kimi Agent";
+    else head = "\uD83D\uDCAC Chatting with Kimi";
+    if (branch) head = join([head, "\uD83C\uDF3F " + branch]);
+
+    var modelText = model ? "\uD83E\uDDE0 " + model : "";
+    var state = (flags.show_file && s.file)
+      ? join([modelText, "\uD83D\uDCC4 " + s.file, quota])
+      : join([modelText, context, quota]);
+
+    var hover = [model || "Kimi"];
+    if (flags.show_work_dir && s.workDir) hover.push(s.workDir);
+    else if (branch) hover.push("branch " + branch);
+    hover.push(s.reset);
+
+    return {
+      details: fit(head),
+      state: fit(state),
+      hover: fit(join(hover)),
+      timer: flags.show_session_timer
+    };
+  }
+
+  function pad(n) { return n < 10 ? "0" + n : String(n); }
+  function clock(sec) {
+    sec = Math.floor(sec);
+    return pad(Math.floor(sec / 3600)) + ":" + pad(Math.floor(sec % 3600 / 60)) + ":" + pad(sec % 60);
+  }
+
+  var el = {
+    badge: document.getElementById("dBadge"),
+    details: document.getElementById("dDetails"),
+    state: document.getElementById("dState"),
+    time: document.getElementById("dTime"),
+    timer: document.getElementById("dTimer"),
+    hover: document.getElementById("dHover"),
+    buttons: document.getElementById("dButtons")
+  };
+
+  function setRow(node, text) {
+    node.textContent = text;
+    node.classList.toggle("empty", !text);
+  }
+
+  function render() {
+    var s = SCENES[scene];
+    var p = build(s);
+    setRow(el.details, p.details);
+    setRow(el.state, p.state);
+    el.badge.textContent = s.badge;
+    el.time.classList.toggle("empty", !p.timer);
+    el.hover.textContent = p.hover ? "hover text: " + p.hover : "";
+    el.buttons.style.display = (flags.buttons && s.running) ? "flex" : "none";
+  }
+
+  toggles.forEach(function (t) {
+    t.addEventListener("change", function () { readFlags(); render(); });
+  });
+
+  var chips = Array.prototype.slice.call(document.querySelectorAll(".chip"));
+  chips.forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      scene = chip.dataset.scene;
+      chips.forEach(function (c) { c.setAttribute("aria-pressed", String(c === chip)); });
+      render();
+    });
+  });
+
+  // Live timers.
+  var heroBase = 2538, started = Date.now();
+  var heroTimer = document.getElementById("heroTimer");
+  setInterval(function () {
+    var d = (Date.now() - started) / 1000;
+    heroTimer.textContent = clock(heroBase + d);
+    el.timer.textContent = clock(SCENES[scene].elapsed + d);
+  }, 1000);
+
+  readFlags();
+  render();
+})();
+</script>
+</body>
+</html>
