@@ -12,7 +12,9 @@ structured events as the app runs:
 * ``[KimiWorkModelSync] ... applied global default model=<key>`` -- the model
   in use when no message has been sent yet.
 * ``[SubscriptionManager] refreshed(sub): ... omniRatio=<0..1> ...`` -- how
-  much of the account quota is consumed.
+  much of the account quota is consumed. Kimi queries this only at launch and
+  around agent sends, so the reading is a snapshot, not a live meter; its
+  timestamp is kept so stale values can be labelled.
 * ``[SurfaceReaper] kimi tab activated (reason=...)`` -- focus events.
 * ``[LoadingFlow] did-start-navigation url=...`` -- which surface is open.
 
@@ -97,6 +99,10 @@ class KimiState:
     quota_used_ratio: float | None = None
     quota_exhausted: bool = False
     quota_reset_at: str | None = None
+    # When Kimi last logged a subscription refresh. Kimi only calls the
+    # membership API at launch and around agent sends, so the ratio above can
+    # be days old; this is what lets the card say so.
+    quota_updated_at: float | None = None
     session_started_at: float | None = None
     last_message_at: float | None = None
     last_activity_at: float | None = None
@@ -270,8 +276,9 @@ class KimiDetector:
             state.last_message_at = when
             state.last_activity_at = max(when, state.last_activity_at or 0.0)
 
-    def _apply_subscription(self, match: re.Match[str]) -> None:
+    def _apply_subscription(self, match: re.Match[str], when: float | None) -> None:
         state = self.state
+        state.quota_updated_at = when
         try:
             state.quota_used_ratio = float(match.group("ratio"))
         except (TypeError, ValueError):
@@ -305,7 +312,7 @@ class KimiDetector:
 
         subscription = _SUBSCRIPTION.search(line)
         if subscription:
-            self._apply_subscription(subscription)
+            self._apply_subscription(subscription, when)
             return
 
         if _TAB_ACTIVATED.search(line):

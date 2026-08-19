@@ -96,7 +96,11 @@ def _doctor(settings: Settings) -> int:
     print(f"    model         : {display_name(state.model_key) or '(unknown)'} [{state.model_key or '-'}]")
     print(f"    context window: {format_context_window(state.context_window) or '(unknown)'}")
     print(f"    agent mode    : {state.agent_mode or '(unknown)'}")
-    print(f"    quota         : {format_quota(state) or '(unknown)'}")
+    quota_text = format_quota(state, settings.display.quota_stale_after) or "(unknown)"
+    if state.quota_updated_at:
+        age_h = (time.time() - state.quota_updated_at) / 3600
+        quota_text += f"  [Kimi last refreshed it {age_h:.0f}h ago]"
+    print(f"    quota         : {quota_text}")
     branch = read_branch(state.work_dir)
     print(f"    git branch    : {branch_label(branch) or '(not a git repo / no work dir)'}")
 

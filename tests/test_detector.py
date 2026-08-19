@@ -109,6 +109,8 @@ def test_subscription_line_sets_quota(kimi_log):
     assert state.quota_exhausted is False
     assert state.quota_reset_at == "2026-09-10T18:02:35.818Z"
     assert state.membership == "Free"
+    # The line's own timestamp, so the card can tell how cold the reading is.
+    assert state.quota_updated_at == parse_line_timestamp(SUBSCRIPTION_LINE)
 
 
 def test_navigation_sets_surface(kimi_log):

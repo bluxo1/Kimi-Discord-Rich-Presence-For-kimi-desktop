@@ -8,6 +8,7 @@ with the overflow moved into the image hover text.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -93,11 +94,21 @@ def format_elapsed(seconds: float | None) -> str:
     return f"{total // 3600:02d}:{(total % 3600) // 60:02d}:{total % 60:02d}"
 
 
-def format_quota(state: KimiState) -> str | None:
+def format_quota(
+    state: KimiState,
+    stale_after_hours: float = 0.0,
+    now: float | None = None,
+) -> str | None:
     """Account quota consumed, e.g. ``4.6% quota used``.
 
     Kimi Desktop does not expose per-message token counts to the local
     machine, so this is the closest honest equivalent to a usage meter.
+
+    It is a snapshot, not a live meter: Kimi asks its membership API for the
+    ratio at launch and around agent sends, and nothing rewrites it in between.
+    A reading older than ``stale_after_hours`` is therefore dated -- ``7.8%
+    quota used (Aug 12)`` -- so the card cannot pass a week-old number off as
+    current. Pass ``0`` to disable the marker.
     """
     if state.quota_exhausted:
         return "quota exhausted"
@@ -105,7 +116,24 @@ def format_quota(state: KimiState) -> str | None:
         return None
     percent = max(0.0, min(1.0, state.quota_used_ratio)) * 100
     text = f"{percent:.0f}%" if percent >= 10 else f"{percent:.1f}%"
+    read_on = _quota_read_on(state, stale_after_hours, now)
+    if read_on:
+        return f"{text} quota used ({read_on})"
     return f"{text} quota used"
+
+
+def _quota_read_on(
+    state: KimiState,
+    stale_after_hours: float,
+    now: float | None,
+) -> str | None:
+    """``"Aug 12"`` if the reading has gone cold, else ``None``."""
+    if stale_after_hours <= 0 or state.quota_updated_at is None:
+        return None
+    age = (time.time() if now is None else now) - state.quota_updated_at
+    if age < stale_after_hours * 3600:
+        return None
+    return datetime.fromtimestamp(state.quota_updated_at).strftime("%b %d")
 
 
 def format_quota_reset(state: KimiState) -> str | None:
@@ -143,7 +171,7 @@ def build_payload(
 
     model = display_name(state.model_key) if display.show_model else None
     context = format_context_window(state.context_window) if display.show_context_window else None
-    quota = format_quota(state) if display.show_quota else None
+    quota = format_quota(state, display.quota_stale_after) if display.show_quota else None
     branch_name = branch_label(branch) if display.show_git_branch else None
 
     # Line 1: what is being worked on.

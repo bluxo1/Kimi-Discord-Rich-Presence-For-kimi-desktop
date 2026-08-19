@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 
 from kimi_discord_rpc.config import DisplayConfig, Settings, load_settings
 from kimi_discord_rpc.git_reader import BranchInfo
@@ -106,6 +107,39 @@ def test_quota_formatting():
     assert format_quota(_state(quota_used_ratio=0.5)) == "50% quota used"
     assert format_quota(_state(quota_exhausted=True)) == "quota exhausted"
     assert format_quota(_state(quota_used_ratio=None)) is None
+
+
+def test_fresh_quota_is_not_dated():
+    now = 1_000_000.0
+    state = _state(quota_used_ratio=0.078, quota_updated_at=now - 3600)
+    assert format_quota(state, 24, now=now) == "7.8% quota used"
+
+
+def test_stale_quota_is_dated():
+    # Kimi refreshes the ratio at launch and around agent sends only, so a
+    # week-old reading must not pose as a live meter.
+    read_at = datetime(2026, 8, 12, 12, 39).timestamp()
+    now = read_at + 7 * 86400
+    state = _state(quota_used_ratio=0.078, quota_updated_at=read_at)
+    assert format_quota(state, 24, now=now) == "7.8% quota used (Aug 12)"
+
+
+def test_stale_marker_can_be_disabled():
+    read_at = datetime(2026, 8, 12, 12, 39).timestamp()
+    state = _state(quota_used_ratio=0.078, quota_updated_at=read_at)
+    assert format_quota(state, 0, now=read_at + 7 * 86400) == "7.8% quota used"
+
+
+def test_unknown_reading_age_is_never_dated():
+    state = _state(quota_used_ratio=0.078, quota_updated_at=None)
+    assert format_quota(state, 24, now=1_000_000.0) == "7.8% quota used"
+
+
+def test_card_dates_a_stale_quota():
+    read_at = datetime(2026, 8, 12, 12, 39).timestamp()
+    state = _state(quota_used_ratio=0.078, quota_updated_at=read_at)
+    card = build_payload(state, DisplayConfig(), None)
+    assert "quota used (Aug 12)" in card.state
 
 
 def test_elapsed_formatting():

@@ -48,6 +48,12 @@ display:
   # Kimi Desktop does not expose per-message token counts locally, so this
   # shows the share of your account quota consumed instead. See README.
   show_quota: true
+
+  # Kimi only asks its server for that number at launch and around agent
+  # sends, so it can sit unchanged for days. A reading older than this many
+  # hours is shown dated -- "7.8% quota used (Aug 12)" -- rather than as a
+  # live meter. Set to 0 to always show it undated.
+  quota_stale_after: 24
   show_context_window: true
 
   # These can identify what you are working on. Off by default.

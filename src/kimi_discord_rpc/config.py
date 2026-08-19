@@ -79,6 +79,10 @@ class DisplayConfig(BaseModel):
     # Kimi Desktop does not expose per-message token counts locally, so this
     # shows the account quota consumed so far instead. See README.
     show_quota: bool = True
+    # Kimi only refreshes that number at launch and around agent sends, so a
+    # reading this many hours old gets dated on the card -- "7.8% quota used
+    # (Aug 12)" -- instead of posing as live. 0 disables the marker.
+    quota_stale_after: float = 24.0
     show_context_window: bool = True
     # The working directory / open filename can be identifying. Off by default.
     show_file: bool = False
@@ -101,6 +105,11 @@ class DisplayConfig(BaseModel):
     @classmethod
     def _sane_poll(cls, v: int) -> int:
         return max(v, 1)
+
+    @field_validator("quota_stale_after")
+    @classmethod
+    def _no_negative_staleness(cls, v: float) -> float:
+        return max(v, 0.0)
 
 
 class BehaviourConfig(BaseModel):

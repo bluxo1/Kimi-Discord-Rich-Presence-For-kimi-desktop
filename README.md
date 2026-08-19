@@ -53,6 +53,30 @@ its reset date, and the model's context window. If you want true token
 accounting, use the Moonshot API directly with your own key — the API returns a
 `usage` block per response, and that is the only honest place to get it.
 
+### The quota number is a snapshot, not a live meter
+
+Kimi asks its membership API for `omniRatio` only when the app launches and
+around agent sends — you can see this yourself in the log, as pairs of
+`[SubscriptionManager] refresh: calling getSubscription` lines with hours or
+days between them. Nothing rewrites the value in between, so a card left up all
+evening will show the same percentage all evening. It also tracks the *agent*
+allowance, so ordinary chatting may not move it at all.
+
+Rather than let a week-old reading pose as current, a value older than
+`display.quota_stale_after` hours (default 24, `0` disables) is shown with the
+date it was taken:
+
+```
+🧠 Kimi K2.6 · 256k ctx · 7.8% quota used (Aug 12)
+```
+
+`--doctor` prints the reading's age directly, which is the quickest way to tell
+a frozen number from a broken one:
+
+```
+    quota         : 7.8% quota used  [Kimi last refreshed it 3h ago]
+```
+
 ## Install
 
 ```bash
@@ -136,6 +160,9 @@ Privacy-relevant switches, all **off** by default:
 
 `display.update_interval` is clamped up to 15 seconds because Discord throttles
 presence updates at roughly that rate; lower values just get dropped.
+`display.quota_stale_after` (hours, default 24) is how old a quota reading may
+get before the card dates it; see
+[the quota note above](#the-quota-number-is-a-snapshot-not-a-live-meter).
 
 ## Security posture
 
